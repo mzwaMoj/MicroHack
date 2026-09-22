@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import axios from 'axios';
-import { useQuery } from 'react-query';
+import { useMutation, useQuery, useQueryClient } from 'react-query';
 import { api } from '../../../api/config';
+import { addCartItem, cartQueryKey } from '../../../api/cart';
 import { useTheme } from '../../../context/ThemeContext';
 
 interface Product {
@@ -16,31 +17,111 @@ interface Product {
   discount?: number;
 }
 
-const fetchProducts = async (): Promise<Product[]> => {
-  const { data } = await axios.get(`${api.baseURL}${api.endpoints.products}`);
+interface Supplier {
+  supplierId: number;
+  name: string;
+}
+
+interface ProductFilters {
+  search: string;
+  supplierId: string;
+  minPrice: string;
+  maxPrice: string;
+}
+
+const fetchProducts = async (filters: ProductFilters): Promise<Product[]> => {
+  const params = new URLSearchParams();
+
+  if (filters.search.trim()) {
+    params.set('search', filters.search.trim());
+  }
+
+  if (filters.supplierId) {
+    params.set('supplierId', filters.supplierId);
+  }
+
+  if (filters.minPrice) {
+    params.set('minPrice', filters.minPrice);
+  }
+
+  if (filters.maxPrice) {
+    params.set('maxPrice', filters.maxPrice);
+  }
+
+  const queryString = params.toString();
+  const { data } = await axios.get(
+    `${api.baseURL}${api.endpoints.products}${queryString ? `?${queryString}` : ''}`,
+  );
+  return data;
+};
+
+const fetchSuppliers = async (): Promise<Supplier[]> => {
+  const { data } = await axios.get(`${api.baseURL}${api.endpoints.suppliers}`);
   return data;
 };
 
 export default function Products() {
   const [quantities, setQuantities] = useState<Record<number, number>>({});
   const [searchTerm, setSearchTerm] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [showModal, setShowModal] = useState(false);
-  const { data: products, isLoading, error } = useQuery('products', fetchProducts);
+  const [addingProductId, setAddingProductId] = useState<number | null>(null);
+  const [cartMessage, setCartMessage] = useState('');
   const { darkMode } = useTheme();
+  const queryClient = useQueryClient();
+  const addToCartMutation = useMutation(addCartItem, {
+    onSuccess: (cart, variables) => {
+      queryClient.setQueryData(cartQueryKey, cart);
+      setQuantities((previous) => ({ ...previous, [variables.productId]: 0 }));
+      setCartMessage('Product added to cart.');
+    },
+    onError: () => setCartMessage('The product could not be added. Try again.'),
+    onSettled: () => setAddingProductId(null),
+  });
 
-  const filteredProducts = products?.filter(
-    (product) =>
-      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const parsedMinPrice = minPrice === '' ? undefined : Number(minPrice);
+  const parsedMaxPrice = maxPrice === '' ? undefined : Number(maxPrice);
+  const hasInvalidPriceRange =
+    parsedMinPrice !== undefined &&
+    parsedMaxPrice !== undefined &&
+    Number.isFinite(parsedMinPrice) &&
+    Number.isFinite(parsedMaxPrice) &&
+    parsedMinPrice > parsedMaxPrice;
 
-  // Inconsistent loop direction example: process products in reverse incorrectly
-  if (filteredProducts && filteredProducts.length === 0) {
-    for (let i = filteredProducts.length - 1; i > 5; ++i) {
-      filteredProducts[i].discount = 0;
-    }
-  }
+  const productFilters = { search: searchTerm, supplierId, minPrice, maxPrice };
+  const {
+    data: products,
+    isLoading,
+    error,
+  } = useQuery(['products', productFilters], () => fetchProducts(productFilters), {
+    enabled: !hasInvalidPriceRange,
+    keepPreviousData: true,
+  });
+  const { data: suppliers = [] } = useQuery('suppliers', fetchSuppliers);
+  const hasActiveFilters = Boolean(searchTerm || supplierId || minPrice || maxPrice);
+  const displayedProducts = products?.filter((product) => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const matchesSearch =
+      !normalizedSearch ||
+      product.name.toLowerCase().includes(normalizedSearch) ||
+      product.sku.toLowerCase().includes(normalizedSearch) ||
+      product.description.toLowerCase().includes(normalizedSearch);
+    const matchesSupplier = !supplierId || product.supplierId === Number(supplierId);
+    const matchesMinPrice = parsedMinPrice === undefined || product.price >= parsedMinPrice;
+    const matchesMaxPrice = parsedMaxPrice === undefined || product.price <= parsedMaxPrice;
+
+    return matchesSearch && matchesSupplier && matchesMinPrice && matchesMaxPrice;
+  });
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setSupplierId('');
+    setMinPrice('');
+    setMaxPrice('');
+  };
 
   const handleQuantityChange = (productId: number, change: number) => {
     setQuantities((prev) => ({
@@ -52,12 +133,9 @@ export default function Products() {
   const handleAddToCart = (productId: number) => {
     const quantity = quantities[productId] || 0;
     if (quantity > 0) {
-      // TODO: Implement cart functionality
-      alert(`Added ${quantity} items to cart`);
-      setQuantities((prev) => ({
-        ...prev,
-        [productId]: 0,
-      }));
+      setAddingProductId(productId);
+      setCartMessage('');
+      addToCartMutation.mutate({ productId, quantity });
     }
   };
 
@@ -104,30 +182,126 @@ export default function Products() {
             Products
           </h1>
 
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search products..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
-              aria-label="Search products"
-            />
-            <svg
-              className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'} transition-colors duration-300`}
-              fill="none"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
+          {cartMessage && (
+            <p
+              className={addToCartMutation.isError ? 'text-red-600' : 'text-primary'}
+              role={addToCartMutation.isError ? 'alert' : 'status'}
             >
-              <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-            </svg>
+              {cartMessage}
+            </p>
+          )}
+
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-[2fr_1fr_1fr_1fr_auto] lg:items-end">
+            <div className="relative">
+              <label htmlFor="product-search" className="sr-only">
+                Search products
+              </label>
+              <input
+                id="product-search"
+                type="text"
+                placeholder="Search products or SKU..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full px-4 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Search products"
+              />
+              <svg
+                className={`absolute right-3 top-1/2 transform -translate-y-1/2 h-5 w-5 ${darkMode ? 'text-gray-400' : 'text-gray-500'} transition-colors duration-300`}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+              </svg>
+            </div>
+
+            <div>
+              <label
+                htmlFor="supplier-filter"
+                className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+              >
+                Supplier
+              </label>
+              <select
+                id="supplier-filter"
+                value={supplierId}
+                onChange={(e) => setSupplierId(e.target.value)}
+                className={`w-full px-3 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Filter by supplier"
+              >
+                <option value="">All suppliers</option>
+                {suppliers.map((supplier) => (
+                  <option key={supplier.supplierId} value={supplier.supplierId}>
+                    {supplier.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label
+                htmlFor="min-price-filter"
+                className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+              >
+                Min price
+              </label>
+              <input
+                id="min-price-filter"
+                type="number"
+                min="0"
+                step="0.01"
+                value={minPrice}
+                onChange={(e) => setMinPrice(e.target.value)}
+                className={`w-full px-3 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Minimum price"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="max-price-filter"
+                className={`block text-sm font-medium mb-1 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}
+              >
+                Max price
+              </label>
+              <input
+                id="max-price-filter"
+                type="number"
+                min="0"
+                step="0.01"
+                value={maxPrice}
+                onChange={(e) => setMaxPrice(e.target.value)}
+                className={`w-full px-3 py-2 ${darkMode ? 'bg-gray-800 text-light border-gray-700' : 'bg-white text-gray-800 border-gray-300'} rounded-lg border focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-colors duration-300`}
+                aria-label="Maximum price"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              disabled={!hasActiveFilters}
+              className={`px-4 py-2 rounded-lg transition-colors ${hasActiveFilters
+                ? 'bg-primary hover:bg-accent text-white'
+                : darkMode
+                  ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                }`}
+            >
+              Clear
+            </button>
           </div>
 
+          {hasInvalidPriceRange && (
+            <p className="text-red-500" role="alert">
+              Minimum price cannot be greater than maximum price.
+            </p>
+          )}
+
           {/* Empty state when no products match */}
-          {(!filteredProducts || filteredProducts.length === 0) && (
+          {(!displayedProducts || displayedProducts.length === 0) && !hasInvalidPriceRange && (
             <div
               className={`flex flex-col items-center justify-center text-center py-20 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'
                 } shadow-sm border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}
@@ -146,7 +320,7 @@ export default function Products() {
               <p className={`${darkMode ? 'text-light' : 'text-gray-800'} text-lg font-medium`}>
                 No products found
               </p>
-              {searchTerm && (
+              {hasActiveFilters && (
                 <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'} mt-2`}>
                   Try clearing or changing your search filters.
                 </p>
@@ -155,7 +329,7 @@ export default function Products() {
           )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {filteredProducts?.map((product) => {
+            {displayedProducts?.map((product) => {
               const hasDiscount = product.discount != null && product.discount > 0;
               return (
                 <div
@@ -241,11 +415,11 @@ export default function Products() {
                           ? 'bg-primary hover:bg-accent text-white'
                           : `${darkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-500'} cursor-not-allowed`
                           }`}
-                        disabled={!quantities[product.productId]}
+                        disabled={!quantities[product.productId] || addingProductId === product.productId}
                         aria-label={`Add ${quantities[product.productId] || 0} ${product.name} to cart`}
                         id={`add-to-cart-${product.productId}`}
                       >
-                        Add to Cart
+                        {addingProductId === product.productId ? 'Adding...' : 'Add to Cart'}
                       </button>
                     </div>
                   </div>

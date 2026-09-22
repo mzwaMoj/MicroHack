@@ -97,14 +97,47 @@
  *         description: Order deleted successfully
  *       404:
  *         description: Order not found
+ *
+ * /api/orders/branch/{branchId}/history:
+ *   get:
+ *     summary: Get order history for a branch
+ *     tags: [Orders]
+ *     parameters:
+ *       - in: path
+ *         name: branchId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: Branch ID
+ *     responses:
+ *       200:
+ *         description: Branch orders with line items and totals
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/OrderHistoryItem'
+ *       400:
+ *         description: Invalid branch ID
+ *       404:
+ *         description: Branch not found
  */
 
 import express from 'express';
 import { Order } from '../models/order';
 import { getOrdersRepository } from '../repositories/ordersRepo';
-import { handleDatabaseError, NotFoundError } from '../utils/errors';
+import { NotFoundError, ValidationError } from '../utils/errors';
 
 const router = express.Router();
+
+const positiveInteger = (value: unknown, name: string): number => {
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new ValidationError(`${name} must be a positive integer`);
+  }
+  return parsed;
+};
 
 // Create a new order
 router.post('/', async (req, res, next) => {
@@ -122,14 +155,18 @@ router.get('/', async (req, res, next) => {
   try {
     const repo = await getOrdersRepository();
     const orders = await repo.findAll();
-
-    // Non-linear pattern example: duplicate destructuring in object
-    if (orders.length > 0) {
-      const { orderId: id, orderId: duplicateId } = orders[0];
-      console.log('Non-linear pattern in order routes:', id, duplicateId);
-    }
-
     res.json(orders);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Get order history by branch ID
+router.get('/branch/:branchId/history', async (req, res, next) => {
+  try {
+    const branchId = positiveInteger(req.params.branchId, 'branchId');
+    const repo = await getOrdersRepository();
+    res.json(await repo.findHistoryByBranchId(branchId));
   } catch (error) {
     next(error);
   }
@@ -139,12 +176,12 @@ router.get('/', async (req, res, next) => {
 router.get('/:id', async (req, res, next) => {
   try {
     const repo = await getOrdersRepository();
-    const order = await repo.findById(parseInt(req.params.id));
-    if (order) {
-      res.json(order);
-    } else {
-      res.status(404).send('Order not found');
+    const orderId = positiveInteger(req.params.id, 'id');
+    const order = await repo.findById(orderId);
+    if (!order) {
+      throw new NotFoundError('Order', orderId);
     }
+    res.json(order);
   } catch (error) {
     next(error);
   }
@@ -154,14 +191,11 @@ router.get('/:id', async (req, res, next) => {
 router.put('/:id', async (req, res, next) => {
   try {
     const repo = await getOrdersRepository();
-    const updatedOrder = await repo.update(parseInt(req.params.id), req.body);
+    const orderId = positiveInteger(req.params.id, 'id');
+    const updatedOrder = await repo.update(orderId, req.body);
     res.json(updatedOrder);
   } catch (error) {
-    if (error instanceof NotFoundError) {
-      res.status(404).send('Order not found');
-    } else {
-      next(error);
-    }
+    next(error);
   }
 });
 
@@ -169,14 +203,11 @@ router.put('/:id', async (req, res, next) => {
 router.delete('/:id', async (req, res, next) => {
   try {
     const repo = await getOrdersRepository();
-    await repo.delete(parseInt(req.params.id));
+    const orderId = positiveInteger(req.params.id, 'id');
+    await repo.delete(orderId);
     res.status(204).send();
   } catch (error) {
-    if (error instanceof NotFoundError) {
-      res.status(404).send('Order not found');
-    } else {
-      next(error);
-    }
+    next(error);
   }
 });
 

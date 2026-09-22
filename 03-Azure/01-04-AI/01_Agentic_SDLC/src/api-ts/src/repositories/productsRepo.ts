@@ -7,6 +7,13 @@ import { Product } from '../models/product';
 import { handleDatabaseError, NotFoundError } from '../utils/errors';
 import { buildInsertSQL, buildUpdateSQL, objectToCamelCase, mapDatabaseRows, DatabaseRow } from '../utils/sql';
 
+export interface ProductSearchFilters {
+  search?: string;
+  supplierId?: number;
+  minPrice?: number;
+  maxPrice?: number;
+}
+
 export class ProductsRepository {
   private db: DatabaseConnection;
 
@@ -20,6 +27,46 @@ export class ProductsRepository {
   async findAll(): Promise<Product[]> {
     try {
       const rows = await this.db.all<DatabaseRow>('SELECT * FROM products ORDER BY product_id');
+      return mapDatabaseRows<Product>(rows);
+    } catch (error) {
+      handleDatabaseError(error);
+    }
+  }
+
+  /**
+   * Search and filter products
+   */
+  async search(filters: ProductSearchFilters): Promise<Product[]> {
+    try {
+      const whereClauses: string[] = [];
+      const values: Array<string | number> = [];
+
+      if (filters.search) {
+        const searchPattern = `%${filters.search.toLowerCase()}%`;
+        whereClauses.push('(LOWER(name) LIKE ? OR LOWER(sku) LIKE ? OR LOWER(description) LIKE ?)');
+        values.push(searchPattern, searchPattern, searchPattern);
+      }
+
+      if (filters.supplierId !== undefined) {
+        whereClauses.push('supplier_id = ?');
+        values.push(filters.supplierId);
+      }
+
+      if (filters.minPrice !== undefined) {
+        whereClauses.push('price >= ?');
+        values.push(filters.minPrice);
+      }
+
+      if (filters.maxPrice !== undefined) {
+        whereClauses.push('price <= ?');
+        values.push(filters.maxPrice);
+      }
+
+      const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+      const rows = await this.db.all<DatabaseRow>(
+        `SELECT * FROM products${whereSql} ORDER BY product_id`,
+        values,
+      );
       return mapDatabaseRows<Product>(rows);
     } catch (error) {
       handleDatabaseError(error);
@@ -131,7 +178,8 @@ export class ProductsRepository {
   async findByName(name: string): Promise<Product[]> {
     try {
       const rows = await this.db.all<DatabaseRow>(
-        `SELECT * FROM products WHERE name LIKE '%${name}%' ORDER BY name`,
+        'SELECT * FROM products WHERE name LIKE ? ORDER BY name',
+        [`%${name}%`],
       );
       return mapDatabaseRows<Product>(rows);
     } catch (error) {

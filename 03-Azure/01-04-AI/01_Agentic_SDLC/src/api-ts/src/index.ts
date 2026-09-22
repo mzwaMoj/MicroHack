@@ -1,4 +1,6 @@
 import express from 'express';
+import path from 'node:path';
+import dotenv from 'dotenv';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 import cors from 'cors';
@@ -10,10 +12,17 @@ import orderRoutes from './routes/order';
 import branchRoutes from './routes/branch';
 import headquartersRoutes from './routes/headquarters';
 import supplierRoutes from './routes/supplier';
+import cartRoutes from './routes/cart';
+import chatRoutes from './routes/chat';
 import { initializeDatabase } from './init-db';
 import { errorHandler } from './utils/errors';
 
+for (const envPath of ['.env', '../.env', '../../.env']) {
+  dotenv.config({ path: path.resolve(process.cwd(), envPath), override: false });
+}
+
 const app = express();
+app.set('trust proxy', 1);
 const port = process.env.PORT || 3000;
 
 // Parse CORS origins from environment variable if available
@@ -80,6 +89,8 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/branches', branchRoutes);
 app.use('/api/headquarters', headquartersRoutes);
 app.use('/api/suppliers', supplierRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/chat', chatRoutes);
 
 app.get('/', (req, res) => {
   res.send('Hello, world!');

@@ -54,6 +54,42 @@ test.describe('Product catalog discovery', () => {
     await expect(description).toBeVisible();
   });
 
+  test('Filter products by supplier', async ({ page }) => {
+    // Given I am viewing the product catalog
+    await page.goto('/products');
+    await expect(page.locator('h1:has-text("Products")')).toBeVisible();
+    await expect(page.locator('h3:has-text("SmartFeeder One")')).toBeVisible();
+
+    // When I filter by the supplier that owns SmartFeeder One
+    await page.getByLabel('Filter by supplier').selectOption({ label: 'CatNip Creations' });
+
+    // Then matching products remain and products from other suppliers are hidden
+    await expect(page.locator('h3:has-text("SmartFeeder One")')).toBeVisible();
+    await expect(page.locator('h3:has-text("CatFlix Entertainment Portal")')).toHaveCount(0);
+  });
+
+  test('Filter products by price range and clear filters', async ({ page }) => {
+    // Given I am viewing the product catalog
+    await page.goto('/products');
+    await expect(page.locator('h1:has-text("Products")')).toBeVisible();
+    await expect(page.locator('h3:has-text("SmartFeeder One")')).toBeVisible();
+
+    // When I enter a price range that includes SmartFeeder One
+    await page.getByLabel('Minimum price').fill('120');
+    await page.getByLabel('Maximum price').fill('140');
+
+    // Then only products in that range are shown
+    await expect(page.locator('h3:has-text("SmartFeeder One")')).toBeVisible();
+    await expect(page.locator('h3:has-text("CatFlix Entertainment Portal")')).toHaveCount(0);
+
+    // When I clear filters
+    await page.getByRole('button', { name: 'Clear' }).click();
+
+    // Then the full catalog is restored
+    await expect(page.locator('h3:has-text("SmartFeeder One")')).toBeVisible();
+    await expect(page.locator('h3:has-text("CatFlix Entertainment Portal")')).toBeVisible();
+  });
+
   test('Search for a product with no matches', async ({ page }) => {
     // Given I am viewing the product catalog
     await page.goto('/products');

@@ -1,5 +1,18 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
+export const demoUsers = [
+  { email: 'admin@github.com', password: 'Admin123!' },
+  { email: 'alice@github.com', password: 'Password123!' },
+  { email: 'bob@github.com', password: 'Password123!' },
+  { email: 'charlie@github.com', password: 'Password123!' },
+  { email: 'danielle@github.com', password: 'Password123!' },
+  { email: 'eric@github.com', password: 'Password123!' },
+  { email: 'faiza@github.com', password: 'Password123!' },
+  { email: 'george@github.com', password: 'Password123!' },
+  { email: 'hannah@github.com', password: 'Password123!' },
+  { email: 'ivan@github.com', password: 'Password123!' },
+];
+
 interface AuthContextType {
   isLoggedIn: boolean;
   isAdmin: boolean;
@@ -14,12 +27,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
 
   const login = async (email: string, password: string) => {
-    // In a real app, you would validate credentials with an API
-    // For now, we'll just check the email domain
-    if (email && password) {
-      setIsLoggedIn(true);
-      setIsAdmin(email.endsWith('@github.com'));
+    const normalizedEmail = email.trim().toLowerCase();
+    const matchingUser = demoUsers.find(
+      (user) =>
+        user.email.toLowerCase() === normalizedEmail && user.password === password,
+    );
+
+    if (!matchingUser) {
+      throw new Error('Invalid credentials');
     }
+
+    setIsLoggedIn(true);
+    setIsAdmin(matchingUser.email.toLowerCase() === 'admin@github.com');
   };
 
   const logout = () => {

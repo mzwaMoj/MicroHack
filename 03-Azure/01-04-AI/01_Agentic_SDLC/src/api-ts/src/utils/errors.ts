@@ -36,6 +36,31 @@ export class ConflictError extends DatabaseError {
   }
 }
 
+export class PaymentDeclinedError extends DatabaseError {
+  constructor() {
+    super('The simulated payment was declined', 'PAYMENT_DECLINED', 402);
+    this.name = 'PaymentDeclinedError';
+  }
+}
+
+export class PaymentConfigurationError extends DatabaseError {
+  constructor() {
+    super(
+      'Payment simulation is not configured',
+      'PAYMENT_NOT_CONFIGURED',
+      503,
+    );
+    this.name = 'PaymentConfigurationError';
+  }
+}
+
+export class ServiceUnavailableError extends DatabaseError {
+  constructor(message: string = 'The requested service is temporarily unavailable') {
+    super(message, 'SERVICE_UNAVAILABLE', 503);
+    this.name = 'ServiceUnavailableError';
+  }
+}
+
 /**
  * Handle database errors and convert SQLite-specific errors to appropriate types
  */

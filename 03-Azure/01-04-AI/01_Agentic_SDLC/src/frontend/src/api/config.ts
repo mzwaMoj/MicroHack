@@ -30,6 +30,12 @@ const getBaseUrl = () => {
 
 export const API_BASE_URL = getBaseUrl();
 
+const configuredCartBranchId = Number(import.meta.env.VITE_CART_BRANCH_ID);
+export const CART_BRANCH_ID =
+  Number.isInteger(configuredCartBranchId) && configuredCartBranchId > 0
+    ? configuredCartBranchId
+    : 1;
+
 export const api = {
   baseURL: API_BASE_URL,
   endpoints: {
@@ -41,5 +47,7 @@ export const api = {
     deliveries: '/api/deliveries',
     orderDetails: '/api/order-details',
     orderDetailDeliveries: '/api/order-detail-deliveries',
+    cart: '/api/cart',
+    chat: '/api/chat',
   },
 };

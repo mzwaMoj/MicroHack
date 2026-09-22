@@ -164,6 +164,219 @@
                 }
             }
         },
+        "/api/cart/{branchId}": {
+            "get": {
+                "summary": "Get the active cart for a branch",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Active or empty cart",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Cart"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cart/{branchId}/items": {
+            "post": {
+                "summary": "Add a product to the active cart",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddCartItemRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated cart"
+                    }
+                }
+            }
+        },
+        "/api/cart/{branchId}/items/{itemId}": {
+            "put": {
+                "summary": "Set a cart item's quantity",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "itemId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateCartItemRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Updated cart",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Cart"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "summary": "Remove an item from the cart",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "in": "path",
+                        "name": "itemId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "Item removed"
+                    }
+                }
+            }
+        },
+        "/api/cart/{branchId}/payment/setup": {
+            "get": {
+                "summary": "Get Google Authenticator-compatible setup details for simulated payment",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "TOTP setup details",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentSetup"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/cart/{branchId}/checkout": {
+            "post": {
+                "summary": "Complete a simulated payment and convert the cart into an order",
+                "tags": [
+                    "Cart"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CheckoutRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Payment approved",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PaymentConfirmation"
+                                }
+                            }
+                        }
+                    },
+                    "402": {
+                        "description": "Simulated payment declined"
+                    }
+                }
+            }
+        },
         "/api/deliveries": {
             "get": {
                 "summary": "Returns all deliveries",
@@ -784,6 +997,46 @@
                 }
             }
         },
+        "/api/orders/branch/{branchId}/history": {
+            "get": {
+                "summary": "Get order history for a branch",
+                "tags": [
+                    "Orders"
+                ],
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "branchId",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Branch ID"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Branch orders with line items and totals",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/OrderHistoryItem"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid branch ID"
+                    },
+                    "404": {
+                        "description": "Branch not found"
+                    }
+                }
+            }
+        },
         "/api/order-details": {
             "get": {
                 "summary": "Returns all order details",
@@ -1090,19 +1343,80 @@
         },
         "/api/products": {
             "get": {
-                "summary": "Returns all products",
+                "summary": "Returns products with optional search and filters",
                 "tags": [
                     "Products"
                 ],
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "search",
+                        "schema": {
+                            "type": "string"
+                        },
+                        "description": "Case-insensitive text search across product name, SKU, and description"
+                    },
+                    {
+                        "in": "query",
+                        "name": "supplierId",
+                        "schema": {
+                            "type": "integer"
+                        },
+                        "description": "Filter products by supplier ID"
+                    },
+                    {
+                        "in": "query",
+                        "name": "minPrice",
+                        "schema": {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "description": "Minimum product price"
+                    },
+                    {
+                        "in": "query",
+                        "name": "maxPrice",
+                        "schema": {
+                            "type": "number",
+                            "minimum": 0
+                        },
+                        "description": "Maximum product price"
+                    }
+                ],
                 "responses": {
                     "200": {
-                        "description": "List of all products",
+                        "description": "List of matching products",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "array",
                                     "items": {
                                         "$ref": "#/components/schemas/Product"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid filter parameter",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "object",
+                                            "properties": {
+                                                "code": {
+                                                    "type": "string",
+                                                    "example": "VALIDATION_ERROR"
+                                                },
+                                                "message": {
+                                                    "type": "string",
+                                                    "example": "Validation error: minPrice cannot be greater than maxPrice"
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1482,6 +1796,88 @@
                     }
                 }
             },
+            "CartItem": {
+                "type": "object",
+                "properties": {
+                    "orderDetailId": {
+                        "type": "integer"
+                    },
+                    "productId": {
+                        "type": "integer"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "imgName": {
+                        "type": "string"
+                    },
+                    "unit": {
+                        "type": "string"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "unitPrice": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "lineTotal": {
+                        "type": "number",
+                        "format": "float"
+                    }
+                }
+            },
+            "Cart": {
+                "type": "object",
+                "properties": {
+                    "orderId": {
+                        "type": "integer",
+                        "nullable": true
+                    },
+                    "branchId": {
+                        "type": "integer"
+                    },
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/CartItem"
+                        }
+                    },
+                    "total": {
+                        "type": "number",
+                        "format": "float"
+                    }
+                }
+            },
+            "AddCartItemRequest": {
+                "type": "object",
+                "required": [
+                    "productId",
+                    "quantity"
+                ],
+                "properties": {
+                    "productId": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                }
+            },
+            "UpdateCartItemRequest": {
+                "type": "object",
+                "required": [
+                    "quantity"
+                ],
+                "properties": {
+                    "quantity": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                }
+            },
             "Delivery": {
                 "type": "object",
                 "required": [
@@ -1603,6 +1999,7 @@
                         "type": "string",
                         "description": "The current status of the order",
                         "enum": [
+                            "cart",
                             "pending",
                             "processing",
                             "shipped",
@@ -1676,6 +2073,165 @@
                     "notes": {
                         "type": "string",
                         "description": "Additional notes about this delivery"
+                    }
+                }
+            },
+            "OrderHistoryDetail": {
+                "type": "object",
+                "required": [
+                    "orderDetailId",
+                    "productId",
+                    "productName",
+                    "quantity",
+                    "unitPrice",
+                    "lineTotal"
+                ],
+                "properties": {
+                    "orderDetailId": {
+                        "type": "integer"
+                    },
+                    "productId": {
+                        "type": "integer"
+                    },
+                    "productName": {
+                        "type": "string"
+                    },
+                    "quantity": {
+                        "type": "integer"
+                    },
+                    "unitPrice": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "lineTotal": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "notes": {
+                        "type": "string"
+                    }
+                }
+            },
+            "OrderHistoryItem": {
+                "type": "object",
+                "required": [
+                    "orderId",
+                    "branchId",
+                    "orderDate",
+                    "name",
+                    "status",
+                    "total",
+                    "details"
+                ],
+                "properties": {
+                    "orderId": {
+                        "type": "integer"
+                    },
+                    "branchId": {
+                        "type": "integer"
+                    },
+                    "orderDate": {
+                        "type": "string",
+                        "format": "date-time"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "total": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "details": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/OrderHistoryDetail"
+                        }
+                    }
+                }
+            },
+            "PaymentSetup": {
+                "type": "object",
+                "properties": {
+                    "issuer": {
+                        "type": "string"
+                    },
+                    "accountName": {
+                        "type": "string"
+                    },
+                    "qrCodeDataUrl": {
+                        "type": "string"
+                    },
+                    "manualEntryKey": {
+                        "type": "string"
+                    }
+                }
+            },
+            "CheckoutRequest": {
+                "type": "object",
+                "required": [
+                    "cardholderName",
+                    "paymentMethod",
+                    "otp"
+                ],
+                "properties": {
+                    "cardholderName": {
+                        "type": "string",
+                        "minLength": 2,
+                        "maxLength": 100
+                    },
+                    "paymentMethod": {
+                        "type": "string",
+                        "enum": [
+                            "demo-card-approved",
+                            "demo-card-declined"
+                        ]
+                    },
+                    "otp": {
+                        "type": "string",
+                        "pattern": "^\\\\d{6}$"
+                    }
+                }
+            },
+            "PaymentConfirmation": {
+                "type": "object",
+                "properties": {
+                    "paymentAttemptId": {
+                        "type": "integer"
+                    },
+                    "orderId": {
+                        "type": "integer"
+                    },
+                    "branchId": {
+                        "type": "integer"
+                    },
+                    "amount": {
+                        "type": "number",
+                        "format": "float"
+                    },
+                    "providerReference": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "approved"
+                        ]
+                    },
+                    "orderStatus": {
+                        "type": "string",
+                        "enum": [
+                            "pending"
+                        ]
+                    },
+                    "paidAt": {
+                        "type": "string",
+                        "format": "date-time"
                     }
                 }
             },
