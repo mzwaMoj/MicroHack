@@ -9,6 +9,9 @@
 Thumbs.db
 .idea/
 .vs/
+.env
+.env.*
+!.env.example
 
 # Playwright local runtime / browser cache (Makefile test targets)
 .playwright-mcp/

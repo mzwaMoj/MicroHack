@@ -1,12 +1,7 @@
-# `infra/` — Challenge 5 starter scaffold (optional)
+# `infra/` — OctoCAT Azure deployment
 
-> **Optional starting point, not a required or "correct" answer.** This is a
-> deliberately incomplete **skeleton** for [Challenge 5 — Deploy into Azure](../challenges/challenge-05.md).
-> It removes blank-page boilerplate (structure, parameters, module wiring, OIDC
-> plumbing) so your 60 minutes go into the interesting agentic work — authoring
-> and refining the deploy with Copilot, deploying, and debugging — **not**
-> scaffolding. The meaningful engineering decisions are left as clearly-marked
-> `// TODO`s on purpose. Extend it, replace it, or ignore it.
+This directory defines the Azure Container Apps deployment used by the GitHub
+Actions workflow in `.github/workflows/deploy.yml`.
 
 ## Intended topology
 
@@ -36,16 +31,15 @@ Azure **Container Apps** as the compute target:
 - **`api` Container App** — target port **3000** (matches `src/api-ts/Dockerfile`,
   which `EXPOSE`s 3000 and runs `npm start`).
 - **`frontend` Container App** — external ingress on port **80** (matches
-  `src/frontend/Dockerfile`, nginx). It is configured with `API_HOST` /
-  `API_PORT` env vars pointing at the `api` app so nginx can reverse-proxy `/api`
-  (see `src/frontend/nginx.conf` + `src/frontend/entrypoint.sh`).
+  `src/frontend/Dockerfile`, nginx). Its runtime configuration points the
+  browser at the public API FQDN over HTTPS.
 
 ## How the Bicep maps to the two Dockerfiles
 
 | Dockerfile | Port | Container App | Notes |
 | --- | --- | --- | --- |
 | `src/api-ts/Dockerfile` | `EXPOSE 3000` | `<prefix>-<env>-api` | `targetPort: 3000`. Ingress internal-vs-external is a **TODO** decision. |
-| `src/frontend/Dockerfile` | `EXPOSE 80` | `<prefix>-<env>-frontend` | `targetPort: 80`, external. Gets `API_HOST` = the api app name and `API_PORT` = `3000`. The entrypoint also honours `API_PROTOCOL` (default `https`). |
+| `src/frontend/Dockerfile` | `EXPOSE 80` | `<prefix>-<env>-frontend` | `targetPort: 80`, external. Gets `API_HOST` = the public API FQDN and `API_PORT` = `443`. |
 
 The workflow builds each image from its own context (`src/api-ts` and
 `src/frontend`) and pushes to ACR; the Bicep then references those image tags.
@@ -69,8 +63,8 @@ The workflow builds each image from its own context (`src/api-ts` and
 - Sensible parameters (`location`, `namePrefix`, `environmentName`, image
   references, `minReplicas` / `maxReplicas`) and outputs (ACR login server,
   frontend URL, api FQDN).
-- The port mapping (api `3000`, frontend `80`) and the `API_HOST` / `API_PORT`
-  proxy wiring between frontend and api.
+- The port mapping (api `3000`, frontend `80`) and browser-facing API runtime
+  configuration.
 - OIDC-based CI/CD plumbing in the workflow (no long-lived secrets).
 
 **Left as `TODO` (the decisions that make this a real deploy — do these):**
@@ -86,7 +80,9 @@ The workflow builds each image from its own context (`src/api-ts` and
 - **Registry auth** — the scaffold defaults to ACR **admin credentials** for a
   fast first deploy; the preferred approach is a **user-assigned managed
   identity** with the `AcrPull` role (no secrets). Swap it in.
-- **Env vars / secrets** — real app configuration and how it's referenced.
+- **Additional env vars / secrets** — the OpenAI key is wired through a
+  Container Apps secret, but other production configuration still needs an
+  explicit strategy.
 - **Scaling rules** — replica counts are set, but add real scale triggers
   (HTTP concurrency, CPU, ...).
 - **Service discovery** — confirm the frontend→api wiring works with whichever
@@ -108,7 +104,8 @@ az deployment group create \
   --parameters infra/main.parameters.json \
   --parameters \
       apiImage="<acr>.azurecr.io/api:<tag>" \
-      frontendImage="<acr>.azurecr.io/frontend:<tag>"
+      frontendImage="<acr>.azurecr.io/frontend:<tag>" \
+      openAiApiKey="$OPENAI_API_KEY"
 
 # 4. Read the outputs (e.g. the public frontend URL)
 az deployment group show -g <rg-name> -n main \
@@ -121,21 +118,27 @@ az deployment group show -g <rg-name> -n main \
 > — **or** split provisioning: create the ACR first, push images, then deploy the
 > apps. The workflow leaves this ordering as a TODO for you to decide.
 
-## Deploy it via the workflow
+## Deploy via GitHub Actions
 
-[`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml) is an
-OIDC-wired scaffold with `# TODO` steps (checkout → `azure/login` → build/push →
-`az group create` → `az deployment group create` → update apps). It is **inert
-by default**: the `push` trigger is commented out and it needs the OIDC secrets
-below. Set those up, finish the TODO steps with Copilot, then run it from the
-**Actions** tab (`workflow_dispatch`).
+The workflow checks out `main`, installs dependencies, builds and tests the
+application, creates the resource group and ACR when needed, builds and pushes
+both images, deploys this Bicep, and verifies the frontend and API URLs.
 
 Required GitHub **secrets**: `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`,
-`AZURE_SUBSCRIPTION_ID`. Required **variables**: `AZURE_RESOURCE_GROUP`,
-`AZURE_LOCATION`. See the header comment in the workflow for the federated-
-credential subject (`repo:<owner>/<repo>:ref:refs/heads/main`). No client secret
-is stored — auth is OIDC only. **Setting up the OIDC federated credential is the
-single most common stumbling block — do it first and verify with a trivial login.**
+`AZURE_SUBSCRIPTION_ID`, and `OPENAI_API_KEY`. Required **variables**: `AZURE_RESOURCE_GROUP`,
+`AZURE_LOCATION` should be a region with available Container Apps capacity.
+Optional variables `AZURE_NAME_PREFIX` and
+`AZURE_ENVIRONMENT_NAME` control globally unique resource names; set a prefix
+that is unique to your subscription when the default `octocat` name is taken.
+The Azure identity needs `Contributor` on the target resource
+group and a federated credential whose subject matches
+`repo:<owner>/<repo>:ref:refs/heads/main`. No client secret is stored.
+
+The Bicep template stores `OPENAI_API_KEY` as the `openai-api-key` Container
+Apps secret and references it only from the API container. It is intentionally
+absent from `main.parameters.json`; pass it at deployment time or through the
+GitHub Actions secret. The frontend container and browser runtime configuration
+never receive this value.
 
 ## Tooling note
 

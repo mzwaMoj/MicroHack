@@ -42,6 +42,10 @@ param apiImage string
 @description('Container image reference for the frontend (e.g. <acr>.azurecr.io/frontend:<tag>).')
 param frontendImage string
 
+@description('OpenAI API key used by the server-side catalog assistant.')
+@secure()
+param openAiApiKey string
+
 @description('Minimum replicas for each app.')
 @minValue(0)
 param minReplicas int = 1
@@ -136,17 +140,36 @@ module apiApp 'modules/containerapp.bicep' = {
     minReplicas: minReplicas
     maxReplicas: maxReplicas
     tags: commonTags
-    // TODO: Add the api's runtime env vars / secrets here (e.g. DB connection
-    //       string once you pick a database strategy).
-    env: []
+    appSecrets: {
+      'openai-api-key': openAiApiKey
+    }
+    env: [
+      {
+        name: 'OPENAI_API_KEY'
+        secretRef: 'openai-api-key'
+      }
+      {
+        name: 'OPENAI_API_BASE'
+        value: 'https://api.openai.com/v1'
+      }
+      {
+        name: 'OPENAI_CHAT_MODEL'
+        value: 'gpt-4.1-mini'
+      }
+      {
+        name: 'OPENAI_EMBEDDING_MODEL'
+        value: 'text-embedding-3-small'
+      }
+    ]
   }
 }
 
 // -----------------------------------------------------------------------------
 // Frontend container app — nginx on 80, external, proxying to the api.
 // -----------------------------------------------------------------------------
-// The API_HOST/API_PORT env vars tell nginx where the api lives. Using the api
-// app name resolves inside the environment for service discovery.
+// The API_HOST/API_PORT env vars are written into runtime-config.js and read by
+// the user's browser, so they must point to the public API ingress when the API
+// is externally exposed.
 module frontendApp 'modules/containerapp.bicep' = {
   name: 'frontend-app'
   params: {
@@ -165,17 +188,16 @@ module frontendApp 'modules/containerapp.bicep' = {
     env: [
       {
         name: 'API_HOST'
-        value: apiAppName
+        value: apiApp.outputs.fqdn
       }
       {
         name: 'API_PORT'
-        // TODO: If you make the api internal-only, confirm the frontend still
-        //       reaches it on 3000 within the environment (it should). If you
-        //       front the api on 443/https externally, adjust API_PORT/PROTOCOL.
-        value: '3000'
+        value: '443'
       }
-      // TODO: The entrypoint also honours API_PROTOCOL (default https). Add it
-      //       here if your ingress/scheme requires it.
+      {
+        name: 'API_PROTOCOL'
+        value: 'https'
+      }
     ]
   }
 }
