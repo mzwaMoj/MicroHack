@@ -30,8 +30,12 @@ param externalIngress bool = true
 @description('Login server of the ACR the image is pulled from.')
 param registryLoginServer string
 
-@description('Environment variables for the container. Array of { name, value } objects.')
+@description('Environment variables for the container. Each item uses either value or secretRef.')
 param env array = []
+
+@description('Application secrets for the container app as name/value properties.')
+@secure()
+param appSecrets object = {}
 
 @description('Tags applied to the app.')
 param tags object = {}
@@ -67,6 +71,10 @@ param registryUsername string = ''
 param registryPassword string = ''
 
 var useAdminCreds = !empty(registryUsername)
+var formattedAppSecrets = [for secret in items(appSecrets): {
+  name: secret.key
+  value: secret.value
+}]
 
 resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
   name: appName
@@ -96,14 +104,15 @@ resource containerApp 'Microsoft.App/containerApps@2024-03-01' = {
           passwordSecretRef: 'registry-password'
         }
       ] : []
-      secrets: useAdminCreds ? [
-        {
-          name: 'registry-password'
-          value: registryPassword
-        }
-      ] : []
-      // TODO: Add application secrets here (DB connection strings, API keys, ...)
-      //       and reference them from env via secretRef instead of value.
+      secrets: concat(
+        useAdminCreds ? [
+          {
+            name: 'registry-password'
+            value: registryPassword
+          }
+        ] : [],
+        formattedAppSecrets
+      )
     }
     template: {
       containers: [
