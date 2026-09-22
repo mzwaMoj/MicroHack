@@ -60,10 +60,14 @@ jobs:
 
       - name: Create resource group
         run: |
-          az group create \
-            --name "$RESOURCE_GROUP" \
-            --location "$LOCATION" \
-            --tags project=octocat-supply environment="$ENVIRONMENT_NAME" managedBy=github-actions
+          if az group show --name "$RESOURCE_GROUP" >/dev/null 2>&1; then
+            echo "Using existing resource group: $RESOURCE_GROUP"
+          else
+            az group create \
+              --name "$RESOURCE_GROUP" \
+              --location "$LOCATION" \
+              --tags project=octocat-supply environment="$ENVIRONMENT_NAME" managedBy=github-actions
+          fi
 
       - name: Build and push images to ACR
         working-directory: ${{ env.APP_ROOT }}
