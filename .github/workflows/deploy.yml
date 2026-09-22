@@ -13,6 +13,7 @@ env:
   AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
   AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
   AZURE_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+  OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
   LOCATION: ${{ vars.AZURE_LOCATION }}
   NAME_PREFIX: ${{ vars.AZURE_NAME_PREFIX || 'octocat' }}
@@ -51,7 +52,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for variable in RESOURCE_GROUP LOCATION; do
+          for variable in RESOURCE_GROUP LOCATION OPENAI_API_KEY; do
             if [[ -z "${!variable}" ]]; then
               echo "Missing repository variable for $variable" >&2
               exit 1
@@ -109,6 +110,7 @@ jobs:
               frontendImage="$LOGIN_SERVER/frontend:$IMAGE_TAG" \
               namePrefix="$NAME_PREFIX" \
               environmentName="$ENVIRONMENT_NAME" \
+              openAiApiKey="$OPENAI_API_KEY" \
               registryUsername="$REGISTRY_USERNAME" \
               registryPassword="$REGISTRY_PASSWORD"
 
